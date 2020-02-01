@@ -7,14 +7,14 @@ function _init()
 end
 
 function title_init()
-  main_menu_init()
-  _update=title_update
-  _draw=title_draw
+ main_menu_init() 
+ _update=title_update
+ _draw=title_draw
 end
 
 function rp_init()
-  _update=rp_update
-  _draw=rp_draw
+ _update=rp_update
+ _draw=rp_draw
   --debug rooms
   tile_size = 16
   wall_sprite = 130
@@ -32,9 +32,28 @@ function rp_init()
   main_player = player(1)
 end
 
-function inst_init()
-  _update=inst_update
-  _draw=inst_draw
+function code_init()
+ code_enter_init()
+ _update=code_update
+ _draw=code_draw
+end
+
+function inst_loop()
+ inst_menu_init()
+ _update=inst_update
+ _draw=inst_draw
+end
+
+function set_rand(string)
+ d=0
+ for i=1,#string do
+  if sub(string,i,1)=='⬆️' then d+=1
+  elseif sub(string,i,1)=='⬇️' then d+=2
+  elseif sub(string,i,1)=='⬅️' then d+=3
+  elseif sub(string,i,1)=='➡️' then d+=4 end
+ end
+ srand(d)
+ random=rnd()
 end
 
 ticks={}
@@ -109,12 +128,12 @@ function menu(init)
 
  function m:cur_update()
   if input_tick:ready() then
-   if btn(2) and self.cur>1 then
+   if btnp(2) and self.cur>1 then
     self.cur-=1
-   elseif btn(3) and self.cur<#self.choices then
+   elseif btnp(3) and self.cur<#self.choices then
     self.cur+=1
    end
-   if btn(4) then self:execute_choice() end
+   if btnp(4) then self:execute_choice() end
   end
  end
 
@@ -138,8 +157,8 @@ end
 
 function main_menu_init()
  main_menu=menu()
- main_menu:add_choice("player", rp_loop)
- main_menu:add_choice("instructions", inst_loop)
+ main_menu:add_choice("player", rp_init) 
+ main_menu:add_choice("instructions", code_init)
 
  function main_menu:draw()
   print("space repair!",20,20,7)
@@ -149,7 +168,85 @@ function main_menu_init()
  function main_menu:something_else()
 
  end
+end
 
+
+function inst_menu_init()
+ inst_menu=menu()
+ inst_menu:add_choice("ships", ship_display)
+ inst_menu:add_choice("rooms", room_display)
+
+ function inst_menu:draw()
+  print(random,100,100,7)
+  self:cur_draw()
+ end
+ 
+end
+
+
+function input(text,maxi)
+ local inp=init or {
+   --set props
+  text=text,
+  x=40,
+  y=40,
+  col=7,
+  vals=0,
+  current="",
+  maxi=maxi,
+  space=20,
+  border=3
+ }
+
+ function inp:new(o)
+  local o=o or {}
+  setmetatable(o,self)
+  self.__index=self
+  return o
+ end
+
+ function inp:enter_keys()
+  if btnp()>0 and input_tick:ready() and #self.current<self.maxi then 
+   if btnp(0) then self.current=self.current.."⬅️"
+   elseif btnp(1) then self.current=self.current.."➡️"
+   elseif btnp(2) then self.current=self.current.."⬆️"
+   elseif btnp(3) then self.current=self.current.."⬇️" end
+  end
+
+  if btnp(5) and #self.current>0 then self.current=sub(self.current,1,#self.current-1) end
+ end
+
+ function inp:ready()
+  if #self.current==self.maxi then return true else return false end
+ end
+
+ function inp:update()
+  self:enter_keys()
+ end
+
+ function inp:draw()
+  if self:ready() then 
+   rectfill(self.x-self.border,self.y-self.border,self.x+self.border+self.maxi*8,self.y+self.space+self.border+8,2)
+   print("confirm?",self.x,self.y+self.border+10,7)
+  end
+
+  print(self.text,self.x,self.y,self.col)
+  print(self.current,self.x,self.y+self.space,self.col)
+ end
+
+ return inp:new(nil)
+end
+
+function code_enter_init()
+ code_enter=input("input code",4)
+ 
+ function code_enter:update()
+  self:enter_keys()
+  if self:ready() and btnp(4) then
+   set_rand(self.current)
+   inst_loop()
+  end
+ end
 end
 
 -->8
@@ -175,7 +272,7 @@ function ship(init)
  --draw
  end
 
- new_ship=ship_cls:new(nil)
+ new_ship=s:new(nil)
  add(ships,new_ship)
  return new_ship
 end
@@ -197,7 +294,7 @@ function room(id, neighbors, components)
  end
 
  function r:update()
- --update
+  
  end
 
  function r:draw()
@@ -330,6 +427,12 @@ end
 
 function inst_update()
  update_ticks()
+ inst_menu:update()
+end
+
+function code_update()
+ update_ticks()
+ code_enter:update()
 end
 
 -->8
@@ -349,7 +452,13 @@ end
 
 function inst_draw()
  cls()
- print("inst",20,20,7)
+ inst_menu:draw()
+ print(d,5,120,7)
+end
+
+function code_draw()
+ cls()
+ code_enter:draw()
 end
 
 --
