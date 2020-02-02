@@ -194,6 +194,9 @@ function inst_menu_init()
  ship_instructions_init()
  for i=1,#ships do
   room_instructions_init(ships[i])
+  for i=1,#ships[i].rooms do
+   fixes_instructions_init(ships[i].rooms[i])
+  end
  end
 end
 
@@ -206,7 +209,7 @@ function ship_instructions_init()
  ship_inst.paging=true
  ship_inst.col=11
  for i=1,#ships do
-  self:add_choice("ship "..i,change_to_room_inst,{ship})
+  self:add_choice("ship "..i,change_to_room_inst,{ships[i]})
  end
 
  function ship_inst:draw()
@@ -217,6 +220,8 @@ function ship_instructions_init()
 end
 
 function change_to_fix_inst(machine)
+
+end
 
 function room_instructions_init(ship)
  room_inst=menu()
@@ -503,13 +508,13 @@ add_ship_with_rooms({
 
 -->8
 --rooms
-function room(id, neighs, components)
+function room(id, neighs, machine)
  local r=init or {
   id = id,
   spawn_x = 64,
   spawn_y = 80,
   neighs = neighs,
-  components = components,
+  machine = machine,
   floor_color = 1,
   walls = {
    top_corner = 128,
