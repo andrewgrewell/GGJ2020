@@ -1,6 +1,9 @@
 pico-8 cartridge // http://www.pico-8.com
 version 18
 __lua__
+--trek support
+--andrew grewell, pete soloway, ryan saul
+
 function _init()
   load_ships()
   title_init()
@@ -102,6 +105,7 @@ function menu(init)
   --set props
   curs=1,
   choices={},
+  back_func={},
   x=40,
   y=30,
   spc=10,
@@ -125,6 +129,14 @@ function menu(init)
   choice.func(choice.args)
  end
 
+ function m:set_back_func(name,func,args)
+  self.back_func={name=name,func=func,args=args}
+ end
+
+ function m:execute_back_func()
+  self.back_func.func(self.back_func.args)
+ end
+
  function m:curs_update()
   if input_tick:ready() then
    if self.paging then
@@ -134,7 +146,8 @@ function menu(init)
     if btnp(2) and self.curs>1 then self.curs-=1
     elseif btnp(3) and self.curs<#self.choices then self.curs+=1 end
    end
-   if btnp(4) then self:execute_choice() end
+   if btnp(4) and #self.choices>0 then self:execute_choice() end
+   if btnp(5) then self:execute_back_func() end
   end
  end
 
@@ -185,6 +198,10 @@ function main_menu_init()
  end
 end
 
+function change_to_ships_inst()
+ inst_menu.state=SHIP_ST
+end
+
 function inst_menu_init()
  SHIP_ST=1
  ROOM_ST=2
@@ -192,26 +209,30 @@ function inst_menu_init()
  inst_menu={
   state=SHIP_ST,
   selected_ship=1,
+  selected_room=1,
   ships_menu={},
   ship_room_menus={}
  }
 
  inst_menu.ships_menu=ships_instructions_init()
  for i=1,#ships do
-  add(inst_menu.ship_room_menus,ship_rooms_instructions_init(ships[i]))
+  local fixes={}
   for i=1,#ships[i].rooms do
-   fixes_instructions_init(ships[i].rooms[i])
+   add(fixes,fixes_instructions_init(ships[i].rooms[i]))
   end
+  add(inst_menu.ship_room_menus,{menu=ship_rooms_instructions_init(ships[i]),fixes=fixes})
  end
 
  function inst_menu:update()
   if self.state==SHIP_ST then self.ships_menu:update()
-  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship]:update() end
+  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship].menu:update()
+  elseif self.state==FIXR_ST then self.ship_room_menus[self.selected_ship].fixes[self.selected_room]:update() end
  end
 
  function inst_menu:draw()
   if self.state==SHIP_ST then self.ships_menu:draw()
-  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship]:draw() end
+  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship].menu:draw()
+  elseif self.state==FIXR_ST then self.ship_room_menus[self.selected_ship].fixes[self.selected_room]:draw() end
  end
 end
 
@@ -227,6 +248,7 @@ function ships_instructions_init()
  for i=1,#ships do
   ship_inst:add_choice("ship "..i,change_to_rooms_inst,i)
  end
+ ship_inst:set_back_func("back",inst_menu_init)
 
  function ship_inst:draw()
   self:draw_left_right_arrows()
@@ -235,17 +257,14 @@ function ships_instructions_init()
  return ship_inst
 end
 
-function change_to_fix_inst(machine)
-
-end
-
 function ship_rooms_instructions_init(ship)
  local room_inst=menu()
  room_inst.paging=true
  room_inst.col=11
  for i=1,#ship.rooms do
-  room_inst:add_choice("room "..i,change_to_fix_inst,{ship.rooms[i].machine})
+  room_inst:add_choice("room "..i,change_to_fix_inst,i)
  end
+ room_inst:set_back_func("back",change_to_ships_inst)
 
  function room_inst:draw()
   print(self.curs,64,64,self.col)
@@ -253,8 +272,21 @@ function ship_rooms_instructions_init(ship)
  return room_inst
 end
 
-function fixes_instructions_init()
+function change_to_fix_inst(room)
+ inst_menu.state=FIXR_ST
+ inst_menu.selected_room=room
+end
 
+function fixes_instructions_init(machine)
+ local fix_inst=menu()
+ fix_inst.paging=true
+ fix_inst.col=11
+ fix_inst:set_back_func("back",change_to_rooms_inst,inst_menu.selected_ship)
+
+ function fix_inst:draw()
+  print("fix here",64,64,self.col)
+ end
+ return fix_inst
 end
 
 function input(text,maxi)
