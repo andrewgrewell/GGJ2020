@@ -192,12 +192,16 @@ function inst_menu_init()
   state=SHIP_ST
  }
 
- ship_instructions_init()
+ inst_menu.ships_menu=ship_instructions_init()
  for i=1,#ships do
   room_instructions_init(ships[i])
   for i=1,#ships[i].rooms do
    fixes_instructions_init(ships[i].rooms[i])
   end
+ end
+
+ function inst_menu:draw()
+  if self.state==SHIP_ST then
  end
 end
 
@@ -206,18 +210,18 @@ function change_to_room_inst(ship)
 end
 
 function ship_instructions_init()
- ship_inst=menu()
+ local ship_inst=menu()
  ship_inst.paging=true
  ship_inst.col=11
  for i=1,#ships do
-  self:add_choice("ship "..i,change_to_room_inst,{ships[i]})
+  ship_inst:add_choice("ship "..i,change_to_room_inst,{ships[i]})
  end
 
  function ship_inst:draw()
   self:draw_left_right_arrows()
   ships[self.curs]:draw_ship_diagram()
  end
-
+ return ship_inst
 end
 
 function change_to_fix_inst(machine)
@@ -225,17 +229,17 @@ function change_to_fix_inst(machine)
 end
 
 function room_instructions_init(ship)
- room_inst=menu()
+ local room_inst=menu()
  room_inst.paging=true
  room_inst.col=11
  for i=1,#ship.rooms do
-  self:add_choice("room "..i,change_to_fix_inst,{ship.rooms[i].machine})
+  room_inst:add_choice("room "..i,change_to_fix_inst,{ship.rooms[i].machine})
  end
 
  function room_inst:draw()
   print(self.curs,64,64,self.col)
  end
-
+ return room_inst
 end
 
 function fixes_instructions_init()
@@ -667,37 +671,35 @@ function machine()
  return m:new(nil)
 end
 
--->8
---components
 function component()
- local c={
+ local comp={
   --set props
   blinking=false,
   sparking=false,
   smoking=false,
  }
 
- function c:set_sprites(base,alt)
+ function comp:set_sprites(base,alt)
   self.base_spr=base
   self.alt_spr=alt
  end
 
- function c:new(o)
+ function comp:new(o)
   local o=o or {}
   setmetatable(o,self)
   self.__index=self
   return o
  end
 
- function c:update()
+ function comp:update()
  --update
  end
 
- function c:draw()
+ function comp:draw()
  --draw
  end
 
- return c:new(nil)
+ return comp:new(nil)
 end
 
 -->8
