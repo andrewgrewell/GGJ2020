@@ -99,14 +99,13 @@ end
 function menu(init)
  local m=init or {
   --set props
-  ycurs=1,
-  xcurs=1,
+  curs=1,
   choices={},
-  xchoices={},
   x=40,
   y=30,
   spc=10,
-  col=7
+  col=7,
+  paging=false,
  }
 
  function m:new(o)
@@ -116,30 +115,24 @@ function menu(init)
   return o
  end
 
- function m:add_choice(name,func)
-  add(self.choices,{name=name,func=func})
- end
-
- function m:add_xchoice(name,func)
-  add(self.xchoices,{name=name,func=func})
+ function m:add_choice(name,func,args)
+  add(self.choices,{name=name,func=func,args=args})
  end
 
  function m:execute_choice()
-  self.choices[self.ycurs].func()
- end
-
- function m:xexecute_choice()
-  self.xchoices[self.xcurs].func()
+  self.choices[self.curs].func()
  end
 
  function m:curs_update()
   if input_tick:ready() then
-   if btnp(2) and self.ycurs>1 then self.ycurs-=1
-   elseif btnp(3) and self.ycurs<#self.choices then self.ycurs+=1 end
-   if btnp(0) and self.xcurs>1 then self.xcurs-=1
-   elseif btnp(1) and self.xcurs<#self.xchoices then self.xcurs+=1 end
-   if #self.choices>0 and btnp(4) then self:execute_choice() end
-   if #self.xchoices>0 and btnp(4) then self:xexecute_choice() end
+   if self.paging then
+    if btnp(0) and self.curs>1 then self.curs-=1
+    elseif btnp(1) and self.curs<#self.choices then self.curs+=1 end
+   else
+    if btnp(2) and self.curs>1 then self.curs-=1
+    elseif btnp(3) and self.curs<#self.choices then self.curs+=1 end
+   end
+   if btnp(4) then self:execute_choice() end
   end
  end
 
@@ -151,18 +144,24 @@ function menu(init)
   for i=1,#self.choices do
    print(self.choices[i].name,self.x,i*self.spc+self.y,self.col)
   end
-  print(">",self.x-10,self.ycurs*self.spc+self.y,self.col)
+  print(">",self.x-10,self.curs*self.spc+self.y,self.col)
  end
 
- function m:left_right_draw()
+ function m:draw_left_right_arrows()
   local lpt={x=20,y=64}
   local rpt={x=104,y=64}
   local w=8
   local h=8
   local t=3
   for i=0,t do
-   if self.xcurs==1 then line(lpt.x+i,lpt.y,lpt.x+w+i,lpt.y-h,11); line(lpt.x+i,lpt.y,lpt.x+w+i,lpt.y+h,11)
-   else line(rpt.x-i,rpt.y,rpt.x-w-i,rpt.y-h,11); line(rpt.x-i,rpt.y,rpt.x-w-i,rpt.y+h,11) end
+   if self.curs>1 then
+    line(lpt.x+i,lpt.y,lpt.x+w+i,lpt.y-h,self.col)
+    line(lpt.x+i,lpt.y,lpt.x+w+i,lpt.y+h,self.col)
+   end
+   if self.curs<#self.choices then
+    line(rpt.x-i,rpt.y,rpt.x-w-i,rpt.y-h,self.col)
+    line(rpt.x-i,rpt.y,rpt.x-w-i,rpt.y+h,self.col)
+   end
   end
  end
 
@@ -182,32 +181,58 @@ function main_menu_init()
   print("space repair!",20,20,7)
   self:ycurs_draw()
  end
-
 end
 
 function inst_menu_init()
  SHIP_ST=1
  ROOM_ST=2
- inst_menu=menu()
+ FIXR_ST=3
+ inst_menu={
+  state=SHIP_ST
+ }
 
- function ship_page_left()
-  if inst_menu.state==SHIP_ST and inst_menu.ship>1 then inst_menu.ship-=1 end
+ ship_instructions_init()
+ for i=1,#ships do
+  room_instructions_init(ships[i])
+ end
+end
+
+function change_to_room_inst(ship)
+
+end
+
+function ship_instructions_init()
+ ship_inst=menu()
+ ship_inst.paging=true
+ ship_inst.col=11
+ for i=1,#ships do
+  self:add_choice("ship "..i,change_to_room_inst,{ship})
  end
 
- function ship_page_right()
-  if inst_menu.state==SHIP_ST and inst_menu.ship<#ships then inst_menu.ship+=1 end
+ function ship_inst:draw()
+  self:draw_left_right_arrows()
+  ships[self.curs]:draw_ship_diagram()
  end
 
- inst_menu:add_xchoice("<", ship_page_left)
- inst_menu:add_xchoice(">", ship_page_right)
- inst_menu.ship=1
- inst_menu.state=SHIP_ST
- inst_menu.xcurs=2
+end
 
- function inst_menu:draw()
-  self:left_right_draw()
-  ships[self.ship]:draw_ship_diagram()
+function change_to_fix_inst(machine)
+
+function room_instructions_init(ship)
+ room_inst=menu()
+ room_inst.paging=true
+ room_inst.col=11
+ for i=1,#ship.rooms do
+  self:add_choice("room "..i,change_to_fix_inst,{ship.rooms[i].machine})
  end
+
+ function room_inst:draw()
+  print(self.curs,64,64,self.col)
+ end
+
+end
+
+function fixes_instructions_init()
 
 end
 
