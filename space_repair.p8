@@ -645,6 +645,11 @@ function component()
   smoking=false,
  }
 
+ function c:set_sprites(base,alt)
+  self.base_spr=base
+  self.alt_spr=alt
+ end
+
  function c:new(o)
   local o=o or {}
   setmetatable(o,self)
