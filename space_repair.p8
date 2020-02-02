@@ -201,7 +201,7 @@ function inst_menu_init()
  end
 
  function inst_menu:draw()
-  if self.state==SHIP_ST then
+  if self.state==SHIP_ST then self.ships_menu:draw() end
  end
 end
 
