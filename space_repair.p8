@@ -484,7 +484,7 @@ function room(id, neighs, components)
   spawn_x = 64,
   spawn_y = 80,
   neighs = neighs,
-  components = components
+  components = components,
   floor_color = 1,
   walls = {
    top_corner = 128,
