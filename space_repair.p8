@@ -3,7 +3,6 @@ version 18
 __lua__
 function _init()
   title_init()
-  rp_init()
 end
 
 function title_init()
@@ -249,10 +248,19 @@ end
 -->8
 --ships
 ships={}
-function ship(init)
- local s=init or {
+function ship(room_layout)
+ local s={
   --set props
+  rooms=room_layout or {},
+  ship_layout={0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  rm_col=7,
+  cord_col=7,
+  dspc=20
  }
+
+ function s:add_room(id,neighbors)
+  add(self.rooms,{id=id,neighbors=neighbors})
+ end
 
  function s:new(o)
   local o=o or {}
@@ -266,13 +274,46 @@ function ship(init)
  end
 
  function s:draw()
- --draw
+  self:draw_ship_diagram() 
+ end
+
+ function s:draw_ship_diagram()
+  for i=1,#self.ship_layout do
+    if self.ship_layout[i]!=0 then
+     local rm=self.ship_layout[i]
+     circfill(rm.x,rm.y,4,self.rm_col)
+     if rm.neighs[1]>0 then line(rm.x,rm.y,rm.x-self.dspc,rm.y,self.cord_col) end
+     if rm.neighs[2]>0 then line(rm.x,rm.y,rm.x,rm.y-self.dspc,self.cord_col) end
+     if rm.neighs[3]>0 then line(rm.x,rm.y,rm.x+self.dspc,rm.y,self.cord_col) end
+     if rm.neighs[4]>0 then line(rm.x,rm.y,rm.x,rm.y+self.dspc,self.cord_col) end
+   end
+  end
+ end
+
+ function s:create_ship_layout()
+  drawn_rooms={1}
+  self:pos_room(1,64,64,self.rooms[1].neighbors)
+ end
+
+ function s:pos_room(id,x,y,neighs)
+  self.ship_layout[id]={x=x,y=y,neighs=neighs}
+  if neighs[1]!=0 and self.ship_layout[neighs[1]]==0 then self:pos_room(neighs[1],x-self.dspc,y,self.rooms[neighs[1]]) end
+  if neighs[2]!=0 and self.ship_layout[neighs[2]]==0 then self:pos_room(neighs[2],x,y-self.dspc,self.rooms[neighs[2]]) end
+  if neighs[3]!=0 and self.ship_layout[neighs[3]]==0 then self:pos_room(neighs[3],x+self.dspc,y,self.rooms[neighs[3]]) end
+  if neighs[4]!=0 and self.ship_layout[neighs[4]]==0 then self:pos_room(neighs[4],x,y+self.dspc,self.rooms[neighs[4]]) end
  end
 
  new_ship=s:new(nil)
  add(ships,new_ship)
  return new_ship
 end
+one_ship=ship()
+one_ship:add_room(1, {0,2,3,0})
+one_ship:add_room(2, {0,0,0,1})
+one_ship:add_room(3, {1,0,0,4})
+one_ship:add_room(4, {5,3,0,0})
+one_ship:add_room(5, {0,0,4,0})
+one_ship:create_ship_layout()
 
 -->8
 --rooms
@@ -566,7 +607,7 @@ end
 function inst_draw()
  cls()
  inst_menu:draw()
- print(d,5,120,7)
+ one_ship:draw()
 end
 
 function code_draw()
