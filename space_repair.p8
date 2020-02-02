@@ -7,7 +7,7 @@ function _init()
 end
 
 function title_init()
- main_menu_init() 
+ main_menu_init()
  _update=title_update
  _draw=title_draw
 end
@@ -23,13 +23,13 @@ function rp_init()
   room_center_x = 64
   room_center_y = 80
   rooms = {
-   room(1, {2,3,nil,nil}),
-   room(2, {nil,nil,1,nil}),
-   room(3, {nil,nil,nil,1}),
-   room(4, {3,nil,nil,5}),
-   room(5, {nil,4,nil,nil}),
+   room(1, {2,3,0,0}),
+   room(2, {0,0,1,0}),
+   room(3, {0,0,4,1}),
+   room(4, {3,0,0,5}),
+   room(5, {0,4,0,0}),
   }
-  main_player = player(1)
+  inst_player = player(1)
 end
 
 function code_init()
@@ -157,7 +157,7 @@ end
 
 function main_menu_init()
  main_menu=menu()
- main_menu:add_choice("player", rp_init) 
+ main_menu:add_choice("player", rp_init)
  main_menu:add_choice("instructions", code_init)
 
  function main_menu:draw()
@@ -180,7 +180,7 @@ function inst_menu_init()
   print(random,100,100,7)
   self:cur_draw()
  end
- 
+
 end
 
 
@@ -206,7 +206,7 @@ function input(text,maxi)
  end
 
  function inp:enter_keys()
-  if btnp()>0 and input_tick:ready() and #self.current<self.maxi then 
+  if btnp()>0 and input_tick:ready() and #self.current<self.maxi then
    if btnp(0) then self.current=self.current.."⬅️"
    elseif btnp(1) then self.current=self.current.."➡️"
    elseif btnp(2) then self.current=self.current.."⬆️"
@@ -225,7 +225,7 @@ function input(text,maxi)
  end
 
  function inp:draw()
-  if self:ready() then 
+  if self:ready() then
    rectfill(self.x-self.border,self.y-self.border,self.x+self.border+self.maxi*8,self.y+self.space+self.border+8,2)
    print("confirm?",self.x,self.y+self.border+10,7)
   end
@@ -239,7 +239,7 @@ end
 
 function code_enter_init()
  code_enter=input("input code",4)
- 
+
  function code_enter:update()
   self:enter_keys()
   if self:ready() and btnp(4) then
@@ -294,24 +294,22 @@ function room(id, neighbors, components)
  end
 
  function r:update()
-  
+
  end
 
  function r:draw()
   self:draw_base()
+  self:draw_doors()
+  print("room_id:"..self.id, 25, 35)
+  print("player_room_id: "..inst_player.room_index, 25, 45)
  end
 
  function r:draw_base()
-  --debug draw floor
-  local door_start = tile_size * 3
-  local door_end = door_start + tile_size
   for yy = 0, 128, tile_size do
    local y = yy
    for xx = 0, 128, tile_size do
     local x = xx
     --print(x..", "..y, x, y)
-    local is_hor_door = x >= door_start and x <= door_end
-    local is_vert_door = y >= door_start and y <= door_end
     local is_top = y == 0
     local is_bottom = y == 128 - tile_size
     local is_left = x == 0
@@ -321,34 +319,60 @@ function room(id, neighbors, components)
     --todo doors
     --top-left
     if (is_top and is_left) then sprite_to_draw = wall_sprite
-    --top-doors
-    elseif (is_top and is_hor_door) then sprite_to_draw = door_sprite
     --top
     elseif (is_top) then sprite_to_draw = wall_sprite
     --top-right
     elseif (is_top and is_right) then sprite_to_draw = wall_sprite
-    --right-doors
-    elseif (is_right and is_vert_door) then sprite_to_draw = door_sprite
     --right
     elseif (is_right) then sprite_to_draw = wall_sprite
     --bottom-right
     elseif (is_right and is_bottom) then sprite_to_draw = wall_sprite
-    --bottom-doors
-    elseif (is_bottom and is_hor_door) then sprite_to_draw = door_sprite
     --bottom
     elseif (is_bottom) then sprite_to_draw = wall_sprite
     --bottom-left
     elseif (is_bottom and is_left) then sprite_to_draw = wall_sprite
-    --left-doors
-    elseif (is_left and is_vert_door) then sprite_to_draw = door_sprite
     --left
     elseif (is_left) then sprite_to_draw = wall_sprite
-    -- component
     -- floor
     else sprite_to_draw = floor_sprite
     end
     -- draw the tile
     spr(sprite_to_draw, x, y, 2, 2)
+   end
+  end
+ end
+ --end draw_base
+
+ function r:draw_doors()
+  local tile_start = tile_size * 3
+  for i = 1, #self.neighbors do
+   --left-doors
+   if (i == 1 and self.neighbors[i] > 0) then
+     local x = 0
+     local y = tile_start
+     spr(door_sprite, x, y, 2, 2)
+     spr(door_sprite, x, y + tile_size, 2, 2)
+   end
+   --top-doors
+   if (i == 2 and self.neighbors[i] > 0) then
+     local x = tile_start
+     local y = 0
+     spr(door_sprite, x, y, 2, 2)
+     spr(door_sprite, x + tile_size, y, 2, 2)
+   end
+   --right-doors
+   if (i == 3 and self.neighbors[i] > 0) then
+     local x = 128 - tile_size
+     local y = tile_start
+     spr(door_sprite, x, y, 2, 2)
+     spr(door_sprite, x, y + tile_size, 2, 2)
+   end
+   --bottom-doors
+   if (i == 4 and self.neighbors[i] > 0) then
+     local x = tile_start
+     local y = 128 - tile_size
+     spr(door_sprite, x, y, 2, 2)
+     spr(door_sprite, x + tile_size, y, 2, 2)
    end
   end
  end
@@ -374,8 +398,27 @@ function player(room_index)
  end
 
  function p:update()
- --update
- --todo kick off exit coroutine if need be
+  self:check_change_room()
+ end
+
+ function p:check_change_room()
+  local room = rooms[self.room_index]
+  --left
+  if btnp(0) and room.neighbors[1] > 0 then self:go_to_room(room.neighbors[1])
+  --right
+ elseif btnp(1) and room.neighbors[3] > 0 then self:go_to_room(room.neighbors[3])
+  --up
+ elseif btnp(2) and room.neighbors[2] > 0 then self:go_to_room(room.neighbors[2])
+  --down
+ elseif btnp(3) and room.neighbors[4] > 0 then self:go_to_room(room.neighbors[4])
+  end
+ end
+
+ function p:go_to_room(room_index)
+  --todo animate to the door before setting room index
+  --cls()
+  --stop("Going to room index: "..room_index)
+  self.room_index = room_index;
  end
 
  function p:draw()
@@ -423,6 +466,8 @@ end
 
 function rp_update()
  update_ticks()
+ rooms[inst_player.room_index]:update()
+ inst_player:update()
 end
 
 function inst_update()
@@ -444,10 +489,10 @@ end
 
 function rp_draw()
  cls()
- if (main_player.room_index)
- then rooms[main_player.room_index]:draw()
+ if (inst_player.room_index)
+ then rooms[inst_player.room_index]:draw()
  end
- main_player:draw()
+ inst_player:draw()
 end
 
 function inst_draw()
