@@ -99,8 +99,10 @@ end
 function menu(init)
  local m=init or {
   --set props
-  cur=1,
+  ycurs=1,
+  xcurs=1,
   choices={},
+  xchoices={},
   x=40,
   y=30,
   spc=10,
@@ -118,34 +120,54 @@ function menu(init)
   add(self.choices,{name=name,func=func})
  end
 
- function m:execute_choice()
-  self.choices[self.cur].func()
+ function m:add_xchoice(name,func)
+  add(self.xchoices,{name=name,func=func})
  end
 
- function m:cur_update()
+ function m:execute_choice()
+  self.choices[self.ycurs].func()
+ end
+
+ function m:xexecute_choice()
+  self.xchoices[self.xcurs].func()
+ end
+
+ function m:curs_update()
   if input_tick:ready() then
-   if btnp(2) and self.cur>1 then
-    self.cur-=1
-   elseif btnp(3) and self.cur<#self.choices then
-    self.cur+=1
-   end
-   if btnp(4) then self:execute_choice() end
+   if btnp(2) and self.ycurs>1 then self.ycurs-=1
+   elseif btnp(3) and self.ycurs<#self.choices then self.ycurs+=1 end
+   if btnp(0) and self.xcurs>1 then self.xcurs-=1
+   elseif btnp(1) and self.xcurs<#self.xchoices then self.xcurs+=1 end
+   if #self.choices>0 and btnp(4) then self:execute_choice() end
+   if #self.xchoices>0 and btnp(4) then self:xexecute_choice() end
   end
  end
 
  function m:update()
-  self:cur_update()
+  self:curs_update()
  end
 
- function m:cur_draw()
+ function m:ycurs_draw()
   for i=1,#self.choices do
    print(self.choices[i].name,self.x,i*self.spc+self.y,self.col)
   end
-  print(">",self.x-10,self.cur*self.spc+self.y,self.col)
+  print(">",self.x-10,self.ycurs*self.spc+self.y,self.col)
+ end
+
+ function m:left_right_draw()
+  local lpt={x=20,y=64}
+  local rpt={x=104,y=64}
+  local w=8
+  local h=8
+  local t=3
+  for i=0,t do
+   if self.xcurs==1 then line(lpt.x+i,lpt.y,lpt.x+w+i,lpt.y-h,11); line(lpt.x+i,lpt.y,lpt.x+w+i,lpt.y+h,11)
+   else line(rpt.x-i,rpt.y,rpt.x-w-i,rpt.y-h,11); line(rpt.x-i,rpt.y,rpt.x-w-i,rpt.y+h,11) end
+  end
  end
 
  function m:draw()
-  self:cur_draw()
+  self:ycurs_draw()
  end
 
  return m:new(nil)
@@ -158,27 +180,36 @@ function main_menu_init()
 
  function main_menu:draw()
   print("space repair!",20,20,7)
-  self:cur_draw()
+  self:ycurs_draw()
  end
 
- function main_menu:something_else()
-
- end
 end
-
 
 function inst_menu_init()
+ SHIP_ST=1
+ ROOM_ST=2
  inst_menu=menu()
- inst_menu:add_choice("ships", ship_display)
- inst_menu:add_choice("rooms", room_display)
+
+ function ship_page_left()
+  if inst_menu.state==SHIP_ST and inst_menu.ship>1 then inst_menu.ship-=1 end
+ end
+
+ function ship_page_right()
+  if inst_menu.state==SHIP_ST and inst_menu.ship<#ships then inst_menu.ship+=1 end
+ end
+
+ inst_menu:add_xchoice("<", ship_page_left)
+ inst_menu:add_xchoice(">", ship_page_right)
+ inst_menu.ship=1
+ inst_menu.state=SHIP_ST
+ inst_menu.xcurs=2
 
  function inst_menu:draw()
-  print(random,100,100,7)
-  self:cur_draw()
+  self:left_right_draw()
+  ships[self.ship]:draw_ship_diagram()
  end
 
 end
-
 
 function input(text,maxi)
  local inp=init or {
@@ -248,18 +279,32 @@ end
 -->8
 --ships
 ships={}
-function ship(room_layout)
+function ship()
  local s={
   --set props
-  rooms=room_layout or {},
+  rooms={},
   ship_layout={0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-  rm_col=7,
-  cord_col=7,
-  dspc=20
+  rm_col=11,
+  cord_col=11,
+  dspc=11,
+  rmsize=3,
+  xmax=0,
+  xmin=128,
+  ymax=0,
+  ymin=128,
+  xoff=0,
+  yoff=0
  }
 
- function s:add_room(id,neighbors)
-  add(self.rooms,{id=id,neighbors=neighbors})
+ function s:add_rooms(array_of_rooms)
+  --Must be in format {{1,{1,2,3,4},{2,{0,1,0,0}, ... }
+  for i=1,#array_of_rooms do
+   self:add_room(array_of_rooms[i][1],array_of_rooms[i][2])
+  end
+ end
+
+ function s:add_room(id,neighs)
+  add(self.rooms,{id=id,neighs=neighs})
  end
 
  function s:new(o)
@@ -274,56 +319,172 @@ function ship(room_layout)
  end
 
  function s:draw()
-  self:draw_ship_diagram() 
+  self:draw_ship_diagram()
  end
 
  function s:draw_ship_diagram()
+  local xoff=-(((self.xmax-self.xmin)/2)+self.xmin-64)-4
+  local yoff=-(((self.ymax-self.ymin)/2)+self.ymin-64)
   for i=1,#self.ship_layout do
     if self.ship_layout[i]!=0 then
      local rm=self.ship_layout[i]
-     circfill(rm.x,rm.y,4,self.rm_col)
-     if rm.neighs[1]>0 then line(rm.x,rm.y,rm.x-self.dspc,rm.y,self.cord_col) end
-     if rm.neighs[2]>0 then line(rm.x,rm.y,rm.x,rm.y-self.dspc,self.cord_col) end
-     if rm.neighs[3]>0 then line(rm.x,rm.y,rm.x+self.dspc,rm.y,self.cord_col) end
-     if rm.neighs[4]>0 then line(rm.x,rm.y,rm.x,rm.y+self.dspc,self.cord_col) end
+     if rm.neighs[1]!=0 then line(rm.x+xoff,rm.y+yoff,rm.x+xoff-self.dspc,rm.y+yoff,self.cord_col) end
+     if rm.neighs[2]!=0 then line(rm.x+xoff,rm.y+yoff,rm.x+xoff,rm.y-self.dspc+yoff,self.cord_col) end
+     if rm.neighs[3]!=0 then line(rm.x+xoff,rm.y+yoff,rm.x+xoff+self.dspc,rm.y+yoff,self.cord_col) end
+     if rm.neighs[4]!=0 then line(rm.x+xoff,rm.y+yoff,rm.x+xoff,rm.y+self.dspc+yoff,self.cord_col) end
+     circfill(rm.x+xoff,rm.y+yoff,self.rmsize,self.rm_col)
    end
   end
+  spc_print(self.description,10,10,11,0,1)
+  print("oiaj:🅾️",10,118,11)
+  print("aoaq:❎",94,118,11)
  end
 
  function s:create_ship_layout()
-  drawn_rooms={1}
-  self:pos_room(1,64,64,self.rooms[1].neighbors)
+  self:pos_room(self.rooms[1],64,64)
  end
 
- function s:pos_room(id,x,y,neighs)
-  self.ship_layout[id]={x=x,y=y,neighs=neighs}
-  if neighs[1]!=0 and self.ship_layout[neighs[1]]==0 then self:pos_room(neighs[1],x-self.dspc,y,self.rooms[neighs[1]]) end
-  if neighs[2]!=0 and self.ship_layout[neighs[2]]==0 then self:pos_room(neighs[2],x,y-self.dspc,self.rooms[neighs[2]]) end
-  if neighs[3]!=0 and self.ship_layout[neighs[3]]==0 then self:pos_room(neighs[3],x+self.dspc,y,self.rooms[neighs[3]]) end
-  if neighs[4]!=0 and self.ship_layout[neighs[4]]==0 then self:pos_room(neighs[4],x,y+self.dspc,self.rooms[neighs[4]]) end
+ function s:pos_room(room,x,y)
+  if x>self.xmax then self.xmax=x end
+  if x<self.xmin then self.xmin=x end
+  if y>self.ymax then self.ymax=y end
+  if y<self.ymin then self.ymin=y end
+  self.ship_layout[room.id]={x=x,y=y,neighs=room.neighs}
+  local w=room.neighs[1]
+  local n=room.neighs[2]
+  local e=room.neighs[3]
+  local s=room.neighs[4]
+  if w != 0 and self.ship_layout[w]==0 then self:pos_room(self.rooms[w],x-self.dspc,y) end
+  if n != 0 and self.ship_layout[n]==0 then self:pos_room(self.rooms[n],x,y-self.dspc) end
+  if e != 0 and self.ship_layout[e]==0 then self:pos_room(self.rooms[e],x+self.dspc,y) end
+  if s != 0 and self.ship_layout[s]==0 then self:pos_room(self.rooms[s],x,y+self.dspc) end
  end
 
  new_ship=s:new(nil)
  add(ships,new_ship)
  return new_ship
 end
-one_ship=ship()
-one_ship:add_room(1, {0,2,3,0})
-one_ship:add_room(2, {0,0,0,1})
-one_ship:add_room(3, {1,0,0,4})
-one_ship:add_room(4, {5,3,0,0})
-one_ship:add_room(5, {0,0,4,0})
-one_ship:create_ship_layout()
+
+function add_ship_with_rooms(rooms,description)
+ nship=ship()
+ nship.description=description
+ nship:add_rooms(rooms)
+ nship:create_ship_layout()
+end
+
+function spc_print(string,x,y,col,xspc,yspc)
+ local ys=y
+ local xs=0
+ for i=1,#string do
+  if sub(string,i,i)=="\n" then ys=ys+(8+yspc); xs=0
+  else xs+=1; print(sub(string,i,i),x+xs*(4+xspc),ys,col) end
+ end
+end
+
+--ship 1
+add_ship_with_rooms({
+{1,{0,0,0,2}},
+{2,{3,1,4,5}},
+{3,{0,0,2,0}},
+{4,{2,0,0,0}},
+{5,{0,2,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 2
+add_ship_with_rooms({
+{1,{0,0,0,3}},
+{2,{0,0,3,5}},
+{3,{2,1,4,0}},
+{4,{3,0,0,6}},
+{5,{0,2,0,0}},
+{6,{0,4,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 3
+add_ship_with_rooms({
+{1,{0,0,0,2}},
+{2,{0,1,0,4}},
+{3,{0,0,4,0}},
+{4,{3,2,5,0}},
+{5,{4,0,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 4
+add_ship_with_rooms({
+{1,{0,0,0,3}},
+{2,{0,0,3,5}},
+{3,{2,1,4,0}},
+{4,{3,0,0,6}},
+{5,{0,2,0,0}},
+{6,{0,4,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 5
+add_ship_with_rooms({
+{1,{0,0,0,3}},
+{2,{0,0,3,5}},
+{3,{2,1,4,6}},
+{4,{3,0,0,7}},
+{5,{0,2,0,0}},
+{6,{0,3,0,0}},
+{7,{0,4,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 6
+add_ship_with_rooms({
+{1,{0,0,2,0}},
+{2,{1,0,0,6}},
+{3,{0,9,0,7}},
+{4,{0,0,5,8}},
+{5,{4,0,0,0}},
+{6,{0,2,7,0}},
+{7,{6,3,8,0}},
+{8,{7,4,0,0}},
+{9,{0,0,0,3}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 7
+add_ship_with_rooms({
+{1,{0,0,0,3}},
+{2,{0,0,0,6}},
+{3,{0,1,4,0}},
+{4,{3,0,5,0}},
+{5,{4,0,6,0}},
+{6,{5,2,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 8
+add_ship_with_rooms({
+{1,{0,0,2,5}},
+{2,{1,0,3,0}},
+{3,{2,0,0,6}},
+{4,{0,0,5,0}},
+{5,{4,1,0,0}},
+{6,{0,3,7,0}},
+{7,{6,0,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 9
+add_ship_with_rooms({
+{1,{0,0,0,4}},
+{2,{0,0,3,0}},
+{3,{2,0,4,6}},
+{4,{3,1,0,0}},
+{5,{0,0,6,0}},
+{6,{5,3,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+--ship 10
+add_ship_with_rooms({
+{1,{0,0,0,2}},
+{2,{0,1,0,3}},
+{3,{0,2,4,0}},
+{4,{3,5,0,6}},
+{5,{0,0,0,4}},
+{6,{0,4,0,0}}},
+"oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+
 
 -->8
 --rooms
-function room(id, neighbors, components)
+function room(id, neighs, components)
  local r=init or {
   id = id,
   spawn_x = 64,
   spawn_y = 80,
-  neighbors = neighbors,
-  components = components,
+  neighs = neighs,
+  components = components
   floor_color = 1,
   walls = {
    top_corner = 128,
@@ -389,30 +550,30 @@ function room(id, neighbors, components)
 
  function r:draw_doors()
   local tile_start = tile_size * 3
-  for i = 1, #self.neighbors do
+  for i = 1, #self.neighs do
    --left-doors
-   if (i == 1 and self.neighbors[i] > 0) then
+   if (i == 1 and self.neighs[i] > 0) then
      local x = 0
      local y = tile_start
      sspr(48, 80, tile_size, tile_size, x, y, tile_size, tile_size, false, true)
      spr(self.doors.side_left, x, y + tile_size, 2, 2)
    end
    --top-doors
-   if (i == 2 and self.neighbors[i] > 0) then
+   if (i == 2 and self.neighs[i] > 0) then
      local x = tile_start
      local y = 0
      spr(self.doors.top, x, y, 2, 2)
      sspr(80, 64, tile_size, tile_size, x + tile_size, y, tile_size, tile_size, true)
    end
    --right-doors
-   if (i == 3 and self.neighbors[i] > 0) then
+   if (i == 3 and self.neighs[i] > 0) then
      local x = room_max
      local y = tile_start
      sspr(48, 80, tile_size, tile_size, x, y + tile_size, tile_size, tile_size, true)
      sspr(48, 80, tile_size, tile_size, x, y, tile_size, tile_size, true, true)
    end
    --bottom-doors
-   if (i == 4 and self.neighbors[i] > 0) then
+   if (i == 4 and self.neighs[i] > 0) then
      local x = tile_start
      local y = 128 - tile_size
      spr(self.doors.bottom, x, y, 2, 2)
@@ -460,13 +621,13 @@ function player(room_index)
   if self.moving then return nil end
   local room = rooms[self.room_index]
   --left
-  if btnp(0) and room.neighbors[1] > 0 then self:exit_room(room.neighbors[1], 1)
+  if btnp(0) and room.neighs[1] > 0 then self:exit_room(room.neighs[1], 1)
   --right
- elseif btnp(1) and room.neighbors[3] > 0 then self:exit_room(room.neighbors[3], 3)
+ elseif btnp(1) and room.neighs[3] > 0 then self:exit_room(room.neighs[3], 3)
   --up
- elseif btnp(2) and room.neighbors[2] > 0 then self:exit_room(room.neighbors[2], 2)
+ elseif btnp(2) and room.neighs[2] > 0 then self:exit_room(room.neighs[2], 2)
   --down
- elseif btnp(3) and room.neighbors[4] > 0 then self:exit_room(room.neighbors[4], 4)
+ elseif btnp(3) and room.neighs[4] > 0 then self:exit_room(room.neighs[4], 4)
   end
  end
 
@@ -607,7 +768,6 @@ end
 function inst_draw()
  cls()
  inst_menu:draw()
- one_ship:draw()
 end
 
 function code_draw()
