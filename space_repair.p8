@@ -589,6 +589,79 @@ function room(id, neighs, components)
 
  return r:new(nil)
 end
+-->8
+--machines
+function machine()
+ local m={
+  --set props
+  top_component={}
+  left_component={}
+  middle_component={}
+  right_component={}
+ }
+
+ function m:add_top_component(current,desired)
+  self.top_component={current=current,desired=desired}
+ end
+
+ function m:add_left_component(current,desired)
+  self.left_component={current=current,desired=desired}
+ end
+
+ function m:add_middle_component(current,desired)
+  self.middle_component={current=current,desired=desired}
+ end
+
+ function m:add_right_component(current,desired)
+  self.right_component={current=current,desired=desired}
+ end
+
+ function m:new(o)
+  local o=o or {}
+  setmetatable(o,self)
+  self.__index=self
+  return o
+ end
+
+ function m:update()
+ --update
+ end
+
+ function m:draw()
+ --draw
+
+ end
+
+ return m:new(nil)
+end
+
+-->8
+--components
+function component()
+ local c={
+  --set props
+  blinking=false,
+  sparking=false,
+  smoking=false,
+ }
+
+ function c:new(o)
+  local o=o or {}
+  setmetatable(o,self)
+  self.__index=self
+  return o
+ end
+
+ function c:update()
+ --update
+ end
+
+ function c:draw()
+ --draw
+ end
+
+ return c:new(nil)
+end
 
 -->8
 --player
@@ -691,30 +764,7 @@ function player(room_index)
 end
 --end-player
 
--->8
---components
-function component(init)
- local c=init or {
-  --set props
- }
 
- function c:new(o)
-  local o=o or {}
-  setmetatable(o,self)
-  self.__index=self
-  return o
- end
-
- function c:update()
- --update
- end
-
- function c:draw()
- --draw
- end
-
- return c:new(nil)
-end
 -->8
 --update
 function title_update()
