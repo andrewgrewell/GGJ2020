@@ -121,7 +121,8 @@ function menu(init)
  end
 
  function m:execute_choice()
-  self.choices[self.curs].func()
+  local choice=self.choices[self.curs]
+  choice.func(choice.args)
  end
 
  function m:curs_update()
@@ -189,32 +190,42 @@ function inst_menu_init()
  ROOM_ST=2
  FIXR_ST=3
  inst_menu={
-  state=SHIP_ST
+  state=SHIP_ST,
+  selected_ship=1,
+  ships_menu={},
+  ship_room_menus={}
  }
 
- inst_menu.ships_menu=ship_instructions_init()
+ inst_menu.ships_menu=ships_instructions_init()
  for i=1,#ships do
-  room_instructions_init(ships[i])
+  add(inst_menu.ship_room_menus,ship_rooms_instructions_init(ships[i]))
   for i=1,#ships[i].rooms do
    fixes_instructions_init(ships[i].rooms[i])
   end
  end
 
+ function inst_menu:update()
+  if self.state==SHIP_ST then self.ships_menu:update()
+  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship]:update() end
+ end
+
  function inst_menu:draw()
-  if self.state==SHIP_ST then self.ships_menu:draw() end
+  if self.state==SHIP_ST then self.ships_menu:draw()
+  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship]:draw() end
  end
 end
 
-function change_to_room_inst(ship)
-
+function change_to_rooms_inst(ship)
+ inst_menu.state=ROOM_ST
+ inst_menu.selected_ship=ship
 end
 
-function ship_instructions_init()
+function ships_instructions_init()
  local ship_inst=menu()
  ship_inst.paging=true
  ship_inst.col=11
  for i=1,#ships do
-  ship_inst:add_choice("ship "..i,change_to_room_inst,{ships[i]})
+  ship_inst:add_choice("ship "..i,change_to_rooms_inst,i)
  end
 
  function ship_inst:draw()
@@ -228,7 +239,7 @@ function change_to_fix_inst(machine)
 
 end
 
-function room_instructions_init(ship)
+function ship_rooms_instructions_init(ship)
  local room_inst=menu()
  room_inst.paging=true
  room_inst.col=11
