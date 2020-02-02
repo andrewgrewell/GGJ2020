@@ -594,9 +594,9 @@ end
 function machine()
  local m={
   --set props
-  top_component={}
-  left_component={}
-  middle_component={}
+  top_component={},
+  left_component={},
+  middle_component={},
   right_component={}
  }
 
@@ -792,134 +792,6 @@ end
 function code_update()
  update_ticks()
  code_enter:update()
-end
-
--->8
---draw
-function title_draw()
- cls()
- main_menu:draw()
-end
-
-function rp_draw()
- cls()
- if (inst_player.room_index)
- then rooms[inst_player.room_index]:draw()
- end
- inst_player:draw()
- draw_target()
-end
-
-function draw_target()
- local mx = stat(32)-1
- local my = stat(33)-1
- local clipped_x = flr(mx/tile_size) * tile_size
- local clipped_y = flr(my/tile_size) * tile_size
- local half_size = tile_size * 0.5
- print(clipped_x..", "..clipped_y, 25,25)
- rect(clipped_x, clipped_y, clipped_x + tile_size, clipped_y + tile_size, 8)
-end
-
-function inst_draw()
- cls()
- inst_menu:draw()
-end
-
-function code_draw()
- cls()
- code_enter:draw()
-end
-
--- corutine manager
-coroutines = {}
-function update_coroutines()
- for c in all(coroutines) do
-   if costatus(c) then
-     coresume(c)
-   else
-     del(coroutines,c)
-   end
- end
-end
-
--- objects
-
--- door
-function create_door(props)
- local d = {
-  open = props.open,
-  anim_index = 0,
-  type = props.type,
-  x = props.x,
-  y = props.y,
- }
-
- function d:new()
-  local o = {}
-  setmetatable(o,self)
-  self.__index=self
-  return o
- end
-
- function d:update()
-  if self.open then anim_index = 2 end
- end
-
- function d:draw()
-  self:draw_door()
- end
-
- function d:draw_door()
-  local tile_start = tile_size * 3
-  for i = 1, #self.neighbors do
-   --left-doors
-   if (self.type == "left") then
-     local x = 0
-     local y = tile_start
-     sspr(48 + anim_index * 16, 80, tile_size, tile_size, x, y, tile_size, tile_size, false, true)
-     spr(self.doors.side_left + 2 * anim_index, x, y + tile_size, 2, 2)
-   end
-   --top-doors
-   if (self.type == "top") then
-     local x = tile_start
-     local y = 0
-     spr(self.doors.top + 2 * anim_index, x, y, 2, 2)
-     sspr(80 + anim_index * 16, 64, tile_size, tile_size, x + tile_size, y, tile_size, tile_size, true)
-   end
-   --right-doors
-   if (self.type == "right") then
-     local x = room_max
-     local y = tile_start
-     sspr(48 + anim_index * 16, 80, tile_size, tile_size, x, y + tile_size, tile_size, tile_size, true)
-     sspr(48 + anim_index * 16, 80, tile_size, tile_size, x, y, tile_size, tile_size, true, true)
-   end
-   --bottom-doors
-   if (self.type == "bottom") then
-     local x = tile_start
-     local y = 128 - tile_size
-     spr(self.doors.bottom + 2 * anim_index, x, y, 2, 2)
-     sspr(0 + anim_index * 16, 80, tile_size, tile_size, x + tile_size, y, tile_size, tile_size, true)
-   end
-  end
- end
-
- function d:open()
-  local c = cocreate(function()
-   for i=#path,1, -1 do
-      self.anim_index = min(self.anim_index+1, 2)
-      yield()
-      yield()
-      yield()
-      yield()
-      yield()
-      yield()
-    end
-    --todo sound fx
-  end)
-  add(coroutines, c)
- end
-
- return c:new(nil)
 end
 
 __gfx__
