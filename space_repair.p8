@@ -1,6 +1,9 @@
 pico-8 cartridge // http://www.pico-8.com
 version 18
 __lua__
+--trek support
+--andrew grewell, pete soloway, ryan saul
+
 function _init()
   load_ships()
   title_init()
@@ -95,6 +98,10 @@ function can_input()
 
 end
 
+function do_nothing()
+
+end
+
 -->8
 --main menu
 function menu(init)
@@ -102,6 +109,7 @@ function menu(init)
   --set props
   curs=1,
   choices={},
+  back_func=do_nothing,
   x=40,
   y=30,
   spc=10,
@@ -121,7 +129,16 @@ function menu(init)
  end
 
  function m:execute_choice()
-  self.choices[self.curs].func()
+  local choice=self.choices[self.curs]
+  choice.func(choice.args)
+ end
+
+ function m:set_back_func(name,func,args)
+  self.back_func={name=name,func=func,args=args}
+ end
+
+ function m:execute_back_func()
+  self.back_func.func(self.back_func.args)
  end
 
  function m:curs_update()
@@ -133,7 +150,8 @@ function menu(init)
     if btnp(2) and self.curs>1 then self.curs-=1
     elseif btnp(3) and self.curs<#self.choices then self.curs+=1 end
    end
-   if btnp(4) then self:execute_choice() end
+   if btnp(5) and #self.choices>0 then self:execute_choice() end
+   if btnp(4) then self:execute_back_func() end
   end
  end
 
@@ -184,38 +202,58 @@ function main_menu_init()
  end
 end
 
+function change_to_ships_inst()
+ inst_menu.state=SHIP_ST
+end
+
 function inst_menu_init()
  SHIP_ST=1
  ROOM_ST=2
  FIXR_ST=3
  inst_menu={
-  state=SHIP_ST
+  state=SHIP_ST,
+  selected_ship=1,
+  selected_room=1,
+  ships_menu={},
+  ship_room_menus={}
  }
 
- inst_menu.ships_menu=ship_instructions_init()
+ inst_menu.ships_menu=ships_instructions_init()
  for i=1,#ships do
-  room_instructions_init(ships[i])
-  for i=1,#ships[i].rooms do
-   fixes_instructions_init(ships[i].rooms[i])
+  local fixes={}
+  local ship = ships[i]
+  for j=1,#ship.rooms do
+   add(fixes,fixes_instructions_init(ship.rooms[j]))
   end
+  add(inst_menu.ship_room_menus,{menu=ship_rooms_instructions_init(ship),fixes=fixes})
+ end
+
+ function inst_menu:update()
+  if self.state==SHIP_ST then self.ships_menu:update()
+  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship].menu:update()
+  elseif self.state==FIXR_ST then self.ship_room_menus[self.selected_ship].fixes[self.selected_room]:update() end
  end
 
  function inst_menu:draw()
-  if self.state==SHIP_ST then self.ships_menu:draw() end
+  if self.state==SHIP_ST then self.ships_menu:draw()
+  elseif self.state==ROOM_ST then self.ship_room_menus[self.selected_ship].menu:draw()
+  elseif self.state==FIXR_ST then self.ship_room_menus[self.selected_ship].fixes[self.selected_room]:draw() end
  end
 end
 
-function change_to_room_inst(ship)
-
+function change_to_rooms_inst(ship)
+ inst_menu.state=ROOM_ST
+ inst_menu.selected_ship=ship
 end
 
-function ship_instructions_init()
+function ships_instructions_init()
  local ship_inst=menu()
  ship_inst.paging=true
  ship_inst.col=11
  for i=1,#ships do
-  ship_inst:add_choice("ship "..i,change_to_room_inst,{ships[i]})
+  ship_inst:add_choice("ship "..i,change_to_rooms_inst,i)
  end
+ ship_inst:set_back_func("back",inst_menu_init)
 
  function ship_inst:draw()
   self:draw_left_right_arrows()
@@ -224,26 +262,36 @@ function ship_instructions_init()
  return ship_inst
 end
 
-function change_to_fix_inst(machine)
-
-end
-
-function room_instructions_init(ship)
+function ship_rooms_instructions_init(ship)
  local room_inst=menu()
  room_inst.paging=true
  room_inst.col=11
  for i=1,#ship.rooms do
-  room_inst:add_choice("room "..i,change_to_fix_inst,{ship.rooms[i].machine})
+  room_inst:add_choice("room "..i,change_to_fix_inst,i)
  end
+ room_inst:set_back_func("back",change_to_ships_inst)
 
  function room_inst:draw()
-  print(self.curs,64,64,self.col)
+  print(self.curs,64,64,self.col) --TODO: draw the components here
  end
  return room_inst
 end
 
-function fixes_instructions_init()
+function change_to_fix_inst(room)
+ inst_menu.state=FIXR_ST
+ inst_menu.selected_room=room
+end
 
+function fixes_instructions_init(machine)
+ local fix_inst=menu()
+ fix_inst.paging=true
+ fix_inst.col=11
+ fix_inst:set_back_func("back",change_to_rooms_inst,inst_menu.selected_ship)
+
+ function fix_inst:draw()
+  print("fix here",64,64,self.col) --TODO: draw the code to fix here
+ end
+ return fix_inst
 end
 
 function input(text,maxi)
@@ -275,7 +323,7 @@ function input(text,maxi)
    elseif btnp(3) then self.current=self.current.."⬇️" end
   end
 
-  if btnp(5) and #self.current>0 then self.current=sub(self.current,1,#self.current-1) end
+  if btnp(4) and #self.current>0 then self.current=sub(self.current,1,#self.current-1) end
  end
 
  function inp:ready()
@@ -304,7 +352,7 @@ function code_enter_init()
 
  function code_enter:update()
   self:enter_keys()
-  if self:ready() and btnp(4) then
+  if self:ready() and btnp(5) then
    set_rand(self.current)
    inst_loop()
   end
@@ -318,7 +366,7 @@ function ship()
  local s={
   --set props
   rooms={},
-  ship_layout={0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+  ship_layout={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   rm_col=11,
   cord_col=11,
   dspc=11,
@@ -338,8 +386,8 @@ function ship()
   end
  end
 
- function s:add_room(id,neighs)
-  add(self.rooms,{id=id,neighs=neighs})
+ function s:add_room(room)
+  add(self.rooms,room)
  end
 
  function s:new(o)
@@ -400,13 +448,6 @@ function ship()
  return new_ship
 end
 
-function add_ship_with_rooms(rooms,description)
- nship=ship()
- nship.description=description
- nship:add_rooms(rooms)
- nship:create_ship_layout()
-end
-
 function spc_print(string,x,y,col,xspc,yspc)
  local ys=y
  local xs=0
@@ -416,100 +457,143 @@ function spc_print(string,x,y,col,xspc,yspc)
  end
 end
 
+function add_ship_with_rooms(rooms,description)
+ nship=ship()
+ nship.description=description
+ for i=1,#rooms do
+  nship:add_room(room(rooms[i].id,rooms[i].neighs,rooms[i].machine))
+ end
+ nship:create_ship_layout()
+end
+
+function load_components()
+ TOP=1
+ MID=2
+ LEFT=3
+ RIGHT=4
+ top_components={
+  component('antenna',32,34,TOP),
+  component('dish',36,38,TOP),
+  component('electrical',40,42,TOP),
+  component('light',44,46,TOP)
+ }
+
+ mid_components={
+  component('readout',64,66,MID),
+  component('teleport',68,70,MID),
+  component('chair',72,74,MID),
+  component('vat',76,78,MID),
+ }
+
+ left_components={
+  component('scale',96,98,LEFT),
+  component('wires',100,102,LEFT),
+  component('tube',104,106,LEFT),
+  component('sad',108,110,LEFT)
+ }
+
+ right_components={
+  component('scale',96,98,RIGHT),
+  component('wires',100,102,RIGHT),
+  component('tube',104,106,RIGHT),
+  component('sad',108,110,RIGHT)
+ }
+end
+
 function load_ships()
  --ship 1
  add_ship_with_rooms({
- {1,{0,0,0,2}},
- {2,{3,1,4,5}},
- {3,{0,0,2,0}},
- {4,{2,0,0,0}},
- {5,{0,2,0,0}}},
+ {id=1,neighs={0,0,0,2},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=2,neighs={3,1,4,5},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=3,neighs={0,0,2,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=4,neighs={2,0,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=5,neighs={0,2,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}}},
  "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
  --ship 2
  add_ship_with_rooms({
- {1,{0,0,0,3}},
- {2,{0,0,3,5}},
- {3,{2,1,4,0}},
- {4,{3,0,0,6}},
- {5,{0,2,0,0}},
- {6,{0,4,0,0}}},
+ {id=1,neighs={0,0,0,3},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=2,neighs={0,0,3,5},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=3,neighs={2,1,4,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=4,neighs={3,0,0,6},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=5,neighs={0,2,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=6,neighs={0,4,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}}},
  "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
  --ship 3
  add_ship_with_rooms({
- {1,{0,0,0,2}},
- {2,{0,1,0,4}},
- {3,{0,0,4,0}},
- {4,{3,2,5,0}},
- {5,{4,0,0,0}}},
+ {id=1,neighs={0,0,0,2},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=2,neighs={0,1,0,4},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=3,neighs={0,0,4,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=4,neighs={3,2,5,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
+ {id=5,neighs={4,0,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}}},
  "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 4
- add_ship_with_rooms({
- {1,{0,0,0,3}},
- {2,{0,0,3,5}},
- {3,{2,1,4,0}},
- {4,{3,0,0,6}},
- {5,{0,2,0,0}},
- {6,{0,4,0,0}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 5
- add_ship_with_rooms({
- {1,{0,0,0,3}},
- {2,{0,0,3,5}},
- {3,{2,1,4,6}},
- {4,{3,0,0,7}},
- {5,{0,2,0,0}},
- {6,{0,3,0,0}},
- {7,{0,4,0,0}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 6
- add_ship_with_rooms({
- {1,{0,0,2,0}},
- {2,{1,0,0,6}},
- {3,{0,9,0,7}},
- {4,{0,0,5,8}},
- {5,{4,0,0,0}},
- {6,{0,2,7,0}},
- {7,{6,3,8,0}},
- {8,{7,4,0,0}},
- {9,{0,0,0,3}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 7
- add_ship_with_rooms({
- {1,{0,0,0,3}},
- {2,{0,0,0,6}},
- {3,{0,1,4,0}},
- {4,{3,0,5,0}},
- {5,{4,0,6,0}},
- {6,{5,2,0,0}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 8
- add_ship_with_rooms({
- {1,{0,0,2,5}},
- {2,{1,0,3,0}},
- {3,{2,0,0,6}},
- {4,{0,0,5,0}},
- {5,{4,1,0,0}},
- {6,{0,3,7,0}},
- {7,{6,0,0,0}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 9
- add_ship_with_rooms({
- {1,{0,0,0,4}},
- {2,{0,0,3,0}},
- {3,{2,0,4,6}},
- {4,{3,1,0,0}},
- {5,{0,0,6,0}},
- {6,{5,3,0,0}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
- --ship 10
- add_ship_with_rooms({
- {1,{0,0,0,2}},
- {2,{0,1,0,3}},
- {3,{0,2,4,0}},
- {4,{3,5,0,6}},
- {5,{0,0,0,4}},
- {6,{0,4,0,0}}},
- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 4
+ -- add_ship_with_rooms({
+ -- {1,{0,0,0,3}},
+ -- {2,{0,0,3,5}},
+ -- {3,{2,1,4,0}},
+ -- {4,{3,0,0,6}},
+ -- {5,{0,2,0,0}},
+ -- {6,{0,4,0,0}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 5
+ -- add_ship_with_rooms({
+ -- {1,{0,0,0,3}},
+ -- {2,{0,0,3,5}},
+ -- {3,{2,1,4,6}},
+ -- {4,{3,0,0,7}},
+ -- {5,{0,2,0,0}},
+ -- {6,{0,3,0,0}},
+ -- {7,{0,4,0,0}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 6
+ -- add_ship_with_rooms({
+ -- {1,{0,0,2,0}},
+ -- {2,{1,0,0,6}},
+ -- {3,{0,9,0,7}},
+ -- {4,{0,0,5,8}},
+ -- {5,{4,0,0,0}},
+ -- {6,{0,2,7,0}},
+ -- {7,{6,3,8,0}},
+ -- {8,{7,4,0,0}},
+ -- {9,{0,0,0,3}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 7
+ -- add_ship_with_rooms({
+ -- {1,{0,0,0,3}},
+ -- {2,{0,0,0,6}},
+ -- {3,{0,1,4,0}},
+ -- {4,{3,0,5,0}},
+ -- {5,{4,0,6,0}},
+ -- {6,{5,2,0,0}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 8
+ -- add_ship_with_rooms({
+ -- {1,{0,0,2,5}},
+ -- {2,{1,0,3,0}},
+ -- {3,{2,0,0,6}},
+ -- {4,{0,0,5,0}},
+ -- {5,{4,1,0,0}},
+ -- {6,{0,3,7,0}},
+ -- {7,{6,0,0,0}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 9
+ -- add_ship_with_rooms({
+ -- {1,{0,0,0,4}},
+ -- {2,{0,0,3,0}},
+ -- {3,{2,0,4,6}},
+ -- {4,{3,1,0,0}},
+ -- {5,{0,0,6,0}},
+ -- {6,{5,3,0,0}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
+ -- --ship 10
+ -- add_ship_with_rooms({
+ -- {1,{0,0,0,2}},
+ -- {2,{0,1,0,3}},
+ -- {3,{0,2,4,0}},
+ -- {4,{3,5,0,6}},
+ -- {5,{0,0,0,4}},
+ -- {6,{0,4,0,0}}},
+ -- "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
 end
 
 -->8
@@ -671,12 +755,16 @@ function machine()
  return m:new(nil)
 end
 
-function component()
+function component(name,base,alt,type)
  local comp={
   --set props
   blinking=false,
   sparking=false,
   smoking=false,
+  name=name,
+  base_spr=base,
+  alt_spr=alt,
+  type=type
  }
 
  function comp:set_sprites(base,alt)
@@ -697,6 +785,10 @@ function component()
 
  function comp:draw()
  --draw
+ end
+
+ function comp:draw_inst()
+
  end
 
  return comp:new(nil)
