@@ -5,6 +5,7 @@ __lua__
 --andrew grewell, pete soloway, ryan saul
 
 function _init()
+  load_components()
   load_ships()
   title_init()
 end
@@ -16,20 +17,23 @@ function title_init()
 end
 
 function rp_init()
- _update=rp_update
- _draw=rp_draw
+
+ current_ship=1
   --debug rooms
   poke(0x5f2d, 1)
   tile_size = 16
   room_max = 112
-  rooms = {
-   room(1, {2,3,0,0}),
-   room(2, {0,0,1,0}),
-   room(3, {0,0,4,1}),
-   room(4, {3,0,0,5}),
-   room(5, {0,4,0,0}),
-  }
+  rooms = ships[current_ship].rooms
+  -- rooms = {
+  --  room(1, {2,3,0,0}),
+  --  room(2, {0,0,1,0}),
+  --  room(3, {0,0,4,1}),
+  --  room(4, {3,0,0,5}),
+  --  room(5, {0,4,0,0}),
+  -- }
   inst_player = player(1)
+  _update=rp_update
+  _draw=rp_draw
 end
 
 function code_init()
@@ -109,11 +113,11 @@ function menu(init)
   --set props
   curs=1,
   choices={},
-  back_func=do_nothing,
+  back_func={name="",func=function() end,args={}},
   x=40,
   y=30,
   spc=10,
-  col=7,
+  col=11,
   paging=false,
  }
 
@@ -193,11 +197,11 @@ end
 
 function main_menu_init()
  main_menu=menu()
- main_menu:add_choice("player", rp_init)
- main_menu:add_choice("instructions", code_init)
+ main_menu:add_choice("player", code_init)
+ main_menu:add_choice("instructions", inst_loop)
 
  function main_menu:draw()
-  print("space repair!",20,20,7)
+  print("trek support",20,20,11)
   self:ycurs_draw()
  end
 end
@@ -258,6 +262,8 @@ function ships_instructions_init()
  function ship_inst:draw()
   self:draw_left_right_arrows()
   ships[self.curs]:draw_ship_diagram()
+  draw_select_button()
+  draw_back_button()
  end
  return ship_inst
 end
@@ -272,8 +278,17 @@ function ship_rooms_instructions_init(ship)
  room_inst:set_back_func("back",change_to_ships_inst)
 
  function room_inst:draw()
-  print(self.curs,64,64,self.col) --TODO: draw the components here
+  self:draw_left_right_arrows()
+  ship.rooms[self.curs].machine:draw_inst()
+  draw_select_button()
+  draw_back_button()
  end
+
+ function room_inst:update()
+  self:curs_update()
+  ship.rooms[self.curs].machine:update()
+ end
+
  return room_inst
 end
 
@@ -289,7 +304,11 @@ function fixes_instructions_init(machine)
  fix_inst:set_back_func("back",change_to_rooms_inst,inst_menu.selected_ship)
 
  function fix_inst:draw()
-  print("fix here",64,64,self.col) --TODO: draw the code to fix here
+  print("lzxjnkja akliajwljl:",10,10,11)
+  draw_check_mark(48,50,11)
+  spr(0,40,56,2,2)
+  print("⬆️⬆️⬆️➡️",64,64,self.col) --TODO: draw the code to fix here
+  draw_back_button()
  end
  return fix_inst
 end
@@ -300,12 +319,12 @@ function input(text,maxi)
   text=text,
   x=40,
   y=40,
-  col=7,
+  col=11,
   vals=0,
   current="",
   maxi=maxi,
   space=20,
-  border=3
+  border=4
  }
 
  function inp:new(o)
@@ -335,28 +354,39 @@ function input(text,maxi)
  end
 
  function inp:draw()
+  rectfill(0,0,128,128,1)
+  print(self.text,self.x-12,self.y-20,self.col)
+  rectfill(self.x-self.border+1,self.y-self.border+1,self.x+self.border+self.maxi*8-1,self.y+self.border+8-1,0)
+
   if self:ready() then
-   rectfill(self.x-self.border,self.y-self.border,self.x+self.border+self.maxi*8,self.y+self.space+self.border+8,2)
-   print("confirm?",self.x,self.y+self.border+10,7)
+   rect(self.x-self.border,self.y-self.border,self.x+self.border+self.maxi*8,self.y+self.border+8,11)
+   print("confirm?",self.x,self.y+self.border+10,self.col)
   end
 
-  print(self.text,self.x,self.y,self.col)
-  print(self.current,self.x,self.y+self.space,self.col)
+  print(self.current,self.x,self.y,self.col)
  end
 
  return inp:new(nil)
 end
 
 function code_enter_init()
- code_enter=input("input code",4)
+ code_enter=input("enter partner code",4)
 
  function code_enter:update()
   self:enter_keys()
   if self:ready() and btnp(5) then
    set_rand(self.current)
-   inst_loop()
+   rp_init()
   end
  end
+end
+
+function draw_select_button()
+ print("oiaj:🅾️",10,118,11)
+end
+
+function draw_back_button()
+ print("aoaq:❎",94,118,11)
 end
 
 -->8
@@ -379,13 +409,6 @@ function ship()
   yoff=0
  }
 
- function s:add_rooms(array_of_rooms)
-  --Must be in format {{1,{1,2,3,4},{2,{0,1,0,0}, ... }
-  for i=1,#array_of_rooms do
-   self:add_room(array_of_rooms[i][1],array_of_rooms[i][2])
-  end
- end
-
  function s:add_room(room)
   add(self.rooms,room)
  end
@@ -398,7 +421,7 @@ function ship()
  end
 
  function s:update()
- --update
+  foreach(self.rooms,function(r) r:update() end)
  end
 
  function s:draw()
@@ -419,8 +442,6 @@ function ship()
    end
   end
   spc_print(self.description,10,10,11,0,1)
-  print("oiaj:🅾️",10,118,11)
-  print("aoaq:❎",94,118,11)
  end
 
  function s:create_ship_layout()
@@ -461,7 +482,9 @@ function add_ship_with_rooms(rooms,description)
  nship=ship()
  nship.description=description
  for i=1,#rooms do
-  nship:add_room(room(rooms[i].id,rooms[i].neighs,rooms[i].machine))
+  local r=room(rooms[i].id,rooms[i].neighs)
+  r:unpack_machine_components(rooms[i].machine)
+  nship:add_room(r)
  end
  nship:create_ship_layout()
 end
@@ -503,28 +526,28 @@ end
 function load_ships()
  --ship 1
  add_ship_with_rooms({
- {id=1,neighs={0,0,0,2},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=2,neighs={3,1,4,5},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=3,neighs={0,0,2,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=4,neighs={2,0,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=5,neighs={0,2,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}}},
+ {id=1,neighs={0,0,0,2},machine={{1,{false,false,false}},{2,{false,false,false}},{3,{false,false,false}},{4,{false,false,false}}}},
+ {id=2,neighs={3,1,4,5},machine={{4,{false,true,true}},{3,{true,true,true}},{2,{true,true,true}},{2,{true,true,true}}}},
+ {id=3,neighs={0,0,2,0},machine={{2,{false,true,true}},{1,{true,true,true}},{4,{true,true,true}},{1,{true,true,true}}}},
+ {id=4,neighs={2,0,0,0},machine={{3,{false,true,true}},{2,{true,true,true}},{1,{true,true,true}},{3,{true,true,true}}}},
+ {id=5,neighs={0,2,0,0},machine={{1,{false,true,true}},{4,{true,true,true}},{2,{true,true,true}},{2,{true,true,true}}}}},
  "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
  --ship 2
  add_ship_with_rooms({
- {id=1,neighs={0,0,0,3},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=2,neighs={0,0,3,5},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=3,neighs={2,1,4,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=4,neighs={3,0,0,6},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=5,neighs={0,2,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=6,neighs={0,4,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}}},
+ {id=1,neighs={0,0,0,3},machine={{2,{false,true,true}},{1,{false,true,true}},{3,{false,true,true}},{2,{false,true,true}}}},
+ {id=2,neighs={0,0,3,5},machine={{3,{false,true,true}},{2,{true,true,true}},{2,{true,true,true}},{1,{true,true,true}}}},
+ {id=3,neighs={2,1,4,0},machine={{1,{false,true,true}},{3,{true,true,true}},{1,{true,true,true}},{3,{true,true,true}}}},
+ {id=4,neighs={3,0,0,6},machine={{1,{false,true,true}},{4,{true,true,true}},{4,{true,true,true}},{1,{true,true,true}}}},
+ {id=5,neighs={0,2,0,0},machine={{4,{false,true,true}},{1,{true,true,true}},{3,{true,true,true}},{4,{true,true,true}}}},
+ {id=6,neighs={0,4,0,0},machine={{3,{false,true,true}},{2,{true,true,true}},{1,{true,true,true}},{1,{true,true,true}}}}},
  "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
  --ship 3
  add_ship_with_rooms({
- {id=1,neighs={0,0,0,2},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=2,neighs={0,1,0,4},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=3,neighs={0,0,4,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=4,neighs={3,2,5,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}},
- {id=5,neighs={4,0,0,0},machine={{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}},{1,{false,false,false}}}}},
+ {id=1,neighs={0,0,0,2},machine={{1,{true,true,true}},{4,{false,true,true}},{2,{true,true,true}},{4,{true,true,true}}}},
+ {id=2,neighs={0,1,0,4},machine={{2,{false,true,true}},{3,{true,true,true}},{3,{true,true,true}},{2,{false,true,true}}}},
+ {id=3,neighs={0,0,4,0},machine={{3,{true,true,true}},{2,{true,true,true}},{1,{true,true,true}},{1,{true,true,true}}}},
+ {id=4,neighs={3,2,5,0},machine={{4,{false,true,true}},{1,{false,true,true}},{4,{true,true,true}},{3,{true,true,true}}}},
+ {id=5,neighs={4,0,0,0},machine={{1,{true,true,true}},{4,{true,true,true}},{3,{true,true,true}},{4,{true,true,true}}}}},
  "oiajoi ;oij;oa wdjoij\noaio jwwoi owi jwda\naoijo;aiwjoaoi")
  -- --ship 4
  -- add_ship_with_rooms({
@@ -598,13 +621,13 @@ end
 
 -->8
 --rooms
-function room(id, neighs, machine)
+function room(id, neighs)
  local r=init or {
   id = id,
   spawn_x = 64,
   spawn_y = 80,
   neighs = neighs,
-  machine = machine,
+  machine = machine(),
   floor_color = 1,
   walls = {
    top_corner = 128,
@@ -626,6 +649,32 @@ function room(id, neighs, machine)
   }
  }
 
+ function r:unpack_machine_components(m) --TODO: current matches desired, need to mix this up
+  local top_current,top_desired = self:unpack_single_component(top_components[m[1][1]],m[1][2],m[1][2])
+  self.machine:add_top_component(top_current,top_desired)
+
+  local left_current,left_desired = self:unpack_single_component(left_components[m[2][1]],m[2][2],m[2][2])
+  self.machine:add_left_component(left_current,left_desired)
+
+  local mid_current,mid_desired = self:unpack_single_component(mid_components[m[3][1]],m[3][2],m[3][2])
+  self.machine:add_middle_component(mid_current,mid_desired)
+
+  local right_current,right_desired = self:unpack_single_component(right_components[m[4][1]],m[4][2],m[4][2])
+  self.machine:add_right_component(right_current,right_desired)
+ end
+
+ function r:unpack_single_component(comp,current,desired)
+  local c_cur = comp
+  c_cur.blinking=current[1]
+  c_cur.sparking=current[2]
+  c_cur.smoking=current[3]
+  local c_des = comp
+  c_des.blinking=desired[1]
+  c_des.sparking=desired[2]
+  c_des.smoking=desired[3]
+  return c_cur,c_des
+ end
+
  function r:new(o)
   local o=o or {}
   setmetatable(o,self)
@@ -634,13 +683,13 @@ function room(id, neighs, machine)
  end
 
  function r:update()
-
+  self.machine:update()
  end
 
  function r:draw()
   self:draw_base()
   self:draw_doors()
-  print("room_id:"..self.id, 25, 35)
+  self.machine:draw()
  end
 
  function r:draw_base()
@@ -711,6 +760,9 @@ function room(id, neighs, machine)
 end
 -->8
 --machines
+
+
+
 function machine()
  local m={
   --set props
@@ -744,16 +796,61 @@ function machine()
  end
 
  function m:update()
- --update
+  self.top_component.current:update()
+  self.top_component.desired:update()
+  self.left_component.current:update()
+  self.left_component.desired:update()
+  self.middle_component.current:update()
+  self.middle_component.desired:update()
+  self.right_component.current:update()
+  self.right_component.desired:update()
  end
 
  function m:draw()
- --draw
+  x=56
+  y=48
+  self.top_component.current:draw(x,y)
+  self.left_component.current:draw(x-16,y+16)
+  self.middle_component.current:draw(x,y+16)
+  self.right_component.current:draw(x+16,y+16)
+ end
+
+ function m:draw_inst()
+  local x=50
+  local y=24
+  local col=11
+  print("aoibowieq oimoijoiq!",x-46,y-8,col)
+  self.top_component.desired:draw(x,y)
+  print("oijad",x+20,y+8,col)
+  draw_check_mark(x-10,y+10,col)
+  self.left_component.desired:draw(x,y+24)
+  print("oijad",x+20,y+32,col)
+  draw_check_mark(x-10,y+34,col)
+  self.middle_component.desired:draw(x,y+48)
+  print("oijad",x+20,y+56,col)
+  draw_check_mark(x-10,y+58,col)
+  self.right_component.desired:draw(x,y+72)
+  print("oijad",x+20,y+80,col)
+  draw_check_mark(x-10,y+82,col)
+ end
+
+ function m:draw_fix()
 
  end
 
  return m:new(nil)
 end
+
+function draw_check_mark(x,y,col)
+ line(x,y,x+6,y-6,col)
+ line(x,y+1,x+6,y-5,col)
+ line(x,y,x-2,y-2,col)
+ line(x,y+1,x-2,y-1,col)
+end
+--
+-- function scramble_letter(l)
+--  --TODO: make this scramble each letter several places
+-- end
 
 function component(name,base,alt,type)
  local comp={
@@ -764,7 +861,11 @@ function component(name,base,alt,type)
   name=name,
   base_spr=base,
   alt_spr=alt,
-  type=type
+  type=type,
+  blink_tick=tick(15),
+  spark_tick=tick(15), -- TODO: Pixel animation
+  smoke_tick=tick(15), -- TODO: Move smoke sprite
+  current_spr=base
  }
 
  function comp:set_sprites(base,alt)
@@ -780,15 +881,16 @@ function component(name,base,alt,type)
  end
 
  function comp:update()
- --update
+  if self.blink_tick:ready() and self.blinking == true then
+   if self.current_spr == self.base_spr then self.current_spr=self.alt_spr else self.current_spr=self.base_spr end
+   self.blink_tick:trigger()
+  end
  end
 
- function comp:draw()
- --draw
- end
-
- function comp:draw_inst()
-
+ function comp:draw(x,y)
+  flipx=false
+  if type==RIGHT then flipx=true end
+  spr(self.current_spr,x,y,2,2,flipx)
  end
 
  return comp:new(nil)
@@ -905,6 +1007,8 @@ end
 
 function rp_update()
  update_ticks()
+ ships[current_ship]:update()
+ -- foreach(rooms,function(o) o:update() end)
  rooms[inst_player.room_index]:update()
  inst_player:update()
  update_coroutines()
@@ -929,9 +1033,11 @@ end
 
 function rp_draw()
  cls()
- if (inst_player.room_index)
- then rooms[inst_player.room_index]:draw()
- end
+ -- if (inst_player.room_index)
+ -- then rooms[inst_player.room_index]:draw()
+ -- end
+
+ rooms[inst_player.room_index]:draw()
  inst_player:draw()
  draw_target()
 end
@@ -942,8 +1048,6 @@ function draw_target()
  local clipped_x = flr(mx/tile_size) * tile_size
  local clipped_y = flr(my/tile_size) * tile_size
  local half_size = tile_size * 0.5
- print(clipped_x..", "..clipped_y, 25,25)
- rect(clipped_x, clipped_y, clipped_x + tile_size, clipped_y + tile_size, 8)
 end
 
 function inst_draw()
